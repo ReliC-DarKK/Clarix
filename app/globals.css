@@ -1,0 +1,176 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@theme inline {
+  --font-sans: var(--font-display), 'Space Grotesk Fallback', ui-sans-serif, system-ui;
+  --font-mono: var(--font-technical), ui-monospace, monospace;
+
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+
+  --color-vegetation: var(--vegetation);
+  --color-water: var(--water);
+  --color-builtup: var(--builtup);
+  --color-road: var(--road);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  color-scheme: dark;
+
+  /* near-black deep navy */
+  --background: oklch(0.145 0.018 265);
+  --foreground: oklch(0.96 0.005 250);
+
+  --card: oklch(0.19 0.02 265);
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.19 0.02 265);
+  --popover-foreground: oklch(0.96 0.005 250);
+
+  /* cyan signal */
+  --primary: oklch(0.82 0.13 205);
+  --primary-foreground: oklch(0.16 0.02 265);
+
+  --secondary: oklch(0.24 0.022 265);
+  --secondary-foreground: oklch(0.96 0.005 250);
+
+  --muted: oklch(0.24 0.022 265);
+  --muted-foreground: oklch(0.66 0.02 260);
+
+  /* violet atmosphere */
+  --accent: oklch(0.62 0.17 292);
+  --accent-foreground: oklch(0.97 0.005 250);
+
+  --destructive: oklch(0.65 0.2 25);
+
+  --border: oklch(0.99 0 0 / 10%);
+  --input: oklch(0.99 0 0 / 14%);
+  --ring: oklch(0.82 0.13 205);
+
+  --vegetation: oklch(0.75 0.17 145);
+  --water: oklch(0.66 0.16 245);
+  --builtup: oklch(0.68 0.19 320);
+  --road: oklch(0.86 0.1 195);
+
+  --radius: 0.25rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  ::selection {
+    background: oklch(0.82 0.13 205 / 25%);
+  }
+}
+
+@utility label-xs {
+  @apply font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground;
+}
+
+/* technical grid overlay */
+@utility grid-overlay {
+  background-image: linear-gradient(to right, oklch(0.99 0 0 / 4%) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.99 0 0 / 4%) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+
+@keyframes clarix-scan {
+  0% {
+    transform: translateY(-120%);
+  }
+  100% {
+    transform: translateY(820%);
+  }
+}
+
+@keyframes clarix-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-1.5%, 1.5%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes clarix-pulse-line {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes clarix-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes clarix-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+@utility animate-rise {
+  animation: clarix-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility animate-scan {
+  animation: clarix-scan 5.5s linear infinite;
+}
+
+@utility animate-drift {
+  animation: clarix-drift 26s ease-in-out infinite;
+}
+
+@utility animate-pulse-line {
+  animation: clarix-pulse-line 2.6s ease-in-out infinite;
+}
+
+@utility animate-sweep {
+  animation: clarix-sweep 2.2s ease-in-out infinite;
+}
