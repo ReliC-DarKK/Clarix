@@ -70,6 +70,29 @@ The preprocessing stage handles:
 
 The prototype uses [Sentinel-2 imagery](https://browser.dataspace.copernicus.eu/) and extracted image patches.
 
+The following Sentinel-2 bands were used to create true-color RGB imagery:
+
+- B02 — Blue
+- B03 — Green
+- B04 — Red
+
+A real Sentinel-2 scene was processed to generate multiple 512 × 512 image patches representing different land-cover patterns, including vegetation, built-up areas, and mixed regions.
+
+Each patch was processed using the preprocessing pipeline:
+
+```text
+Raw Sentinel-2 Patch
+        ↓
+RGB Conversion
+        ↓
+Crop / Standardization
+        ↓
+512 × 512 Reference Image
+        ↓
+Down-sampling
+        ↓
+256 × 256 LR Input
+```
 
 ### 2. AI Super-Resolution
 
