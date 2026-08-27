@@ -200,6 +200,8 @@ Clarix/
 │       ├── p4_landcover_mask.png
 │       ├── p4_landcover_map.png
 │       └── p4_landcover_overlay.png
+│   └──weights/
+│       └── segformer_loveda_epoch_3.pth
 │
 ├── P5_integration/
 │   └── ...
