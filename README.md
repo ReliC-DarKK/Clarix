@@ -191,11 +191,12 @@ Clarix/
 │   ├── evaluation.py
 │   └── outputs/
 │
-├── P4_mapping/
-│   ├── p4_requirements.txt
-│   ├── p4_landcover.py
-│   ├── p4_run_demo.py
-│   └── p4_outputs/
+├── Mapping-Segmentation/
+│   ├── requirements.txt
+│   ├── model.py
+│   ├── inference.py
+│   ├── visualization.py
+│   └── test-images/
 │       ├── p4_landcover_mask.png
 │       ├── p4_landcover_map.png
 │       └── p4_landcover_overlay.png
