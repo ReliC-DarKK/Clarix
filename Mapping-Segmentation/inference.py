@@ -7,26 +7,14 @@ from model import model, processor, DEVICE
 
 
 def segment_satellite_image(image_path):
-    """
-    Run P4 land-cover segmentation on one satellite image.
-
-    Returns:
-        predicted_mask: NumPy array containing predicted class IDs.
-    """
-
-    # --------------------------------------------
-    # Load image
-    # --------------------------------------------
-
+    
+    #Load Image
     image = Image.open(image_path).convert("RGB")
     image_array = np.array(image)
 
     print("Input image shape:", image_array.shape)
 
-    # --------------------------------------------
     # Preprocess
-    # --------------------------------------------
-
     inputs = processor(
         images=image_array,
         return_tensors="pt"
@@ -37,10 +25,7 @@ def segment_satellite_image(image_path):
         for key, value in inputs.items()
     }
 
-    # --------------------------------------------
     # Run SegFormer
-    # --------------------------------------------
-
     with torch.no_grad():
 
         outputs = model(**inputs)
@@ -57,10 +42,7 @@ def segment_satellite_image(image_path):
             dim=1
         ).squeeze(0)
 
-    # --------------------------------------------
     # Move prediction to CPU
-    # --------------------------------------------
-
     predicted_mask = predicted_mask.cpu().numpy()
     predicted_mask = predicted_mask.astype(np.int64)
 
@@ -73,11 +55,7 @@ def segment_satellite_image(image_path):
 
     return predicted_mask
 
-
-# ============================================================
 # TEST
-# ============================================================
-
 if __name__ == "__main__":
 
     test_image = "Mapping-Segmentation/test-images/667.png"
