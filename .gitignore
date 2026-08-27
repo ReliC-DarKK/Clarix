@@ -1,0 +1,37 @@
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+
+# IDE settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Hugging Face / ML caches
+.cache/
+huggingface_cache/
+
+# Generated visualization/output files
+*_segmentation.png
+
+# Python build files
+build/
+dist/
+*.egg-info/
