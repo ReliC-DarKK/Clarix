@@ -9,3 +9,7 @@ sat_outputs/*
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+
+# Force Git to track everything in sat_outputs
+!sat_outputs/
+!sat_outputs/*.png
