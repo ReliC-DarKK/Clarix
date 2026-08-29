@@ -1,0 +1,15 @@
+# Exclude model weights
+weights/*.pth
+
+# Exclude temporary or large imagery
+sat_outputs/*
+!sat_outputs/.gitkeep
+
+# Exclude python cache
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Force Git to track everything in sat_outputs
+!sat_outputs/
+!sat_outputs/*.png
