@@ -1,6 +1,7 @@
 from pathlib import Path
 import shutil
 import sys
+import time
 
 import cv2
 import numpy as np
@@ -729,6 +730,12 @@ def run_pipeline(
     output_name: str,
 ):
 
+    # ==================================================
+    # TOTAL PIPELINE TIMER
+    # ==================================================
+
+    total_start = time.perf_counter()
+
     print("")
     print("=" * 60)
     print("STARTING CLARIX PIPELINE")
@@ -741,6 +748,8 @@ def run_pipeline(
     # ==================================================
     # STEP 1 — RAW
     # ==================================================
+
+    step_start = time.perf_counter()
 
     raw_path = (
         RAW_DIR
@@ -757,6 +766,11 @@ def run_pipeline(
         f"{raw_path}"
     )
 
+    print(
+        f"[TIME] RAW COPY: "
+        f"{time.perf_counter() - step_start:.2f} seconds"
+    )
+
     # ==================================================
     # STEP 2 — P2
     # ==================================================
@@ -764,9 +778,16 @@ def run_pipeline(
     print("")
     print("STEP 2: P2 PREPROCESSING")
 
+    step_start = time.perf_counter()
+
     hr_path, lr_path = preprocess_image(
         raw_path,
         output_name,
+    )
+
+    print(
+        f"[TIME] P2 PREPROCESSING: "
+        f"{time.perf_counter() - step_start:.2f} seconds"
     )
 
     # ==================================================
@@ -776,13 +797,35 @@ def run_pipeline(
     print("")
     print("STEP 3: P1 ESRGAN")
 
-    sr_path = (
-        SR_DIR
-        / f"{output_name}_sr_512.png"
-    )
+    # --------------------------------------------------
+    # Model loading timer
+    # --------------------------------------------------
+
+    model_start = time.perf_counter()
 
     sr_model, device = (
         backend.get_sr_model()
+    )
+
+    model_time = (
+        time.perf_counter()
+        - model_start
+    )
+
+    print(
+        f"[TIME] P1 MODEL LOAD/REUSE: "
+        f"{model_time:.2f} seconds"
+    )
+
+    # --------------------------------------------------
+    # ESRGAN inference timer
+    # --------------------------------------------------
+
+    sr_start = time.perf_counter()
+
+    sr_path = (
+        SR_DIR
+        / f"{output_name}_sr_512.png"
     )
 
     backend.run_super_resolution(
@@ -792,12 +835,29 @@ def run_pipeline(
         device=device,
     )
 
+    sr_inference_time = (
+        time.perf_counter()
+        - sr_start
+    )
+
+    print(
+        f"[TIME] P1 ESRGAN INFERENCE: "
+        f"{sr_inference_time:.2f} seconds"
+    )
+
     # --------------------------------------------------
     # Ensure ESRGAN = 512x512
     # --------------------------------------------------
 
+    ensure_start = time.perf_counter()
+
     ensure_512x512(
         sr_path
+    )
+
+    print(
+        f"[TIME] P1 SIZE CHECK: "
+        f"{time.perf_counter() - ensure_start:.2f} seconds"
     )
 
     print(
@@ -812,6 +872,8 @@ def run_pipeline(
     print("")
     print("STEP 4: P3 BICUBIC")
 
+    step_start = time.perf_counter()
+
     bicubic_path = (
         SR_DIR
         / f"{output_name}_bicubic_512.png"
@@ -822,12 +884,24 @@ def run_pipeline(
         output_path=str(bicubic_path),
     )
 
+    print(
+        f"[TIME] P3 BICUBIC: "
+        f"{time.perf_counter() - step_start:.2f} seconds"
+    )
+
     # --------------------------------------------------
     # Ensure Bicubic = 512x512
     # --------------------------------------------------
 
+    ensure_start = time.perf_counter()
+
     ensure_512x512(
         bicubic_path
+    )
+
+    print(
+        f"[TIME] P3 SIZE CHECK: "
+        f"{time.perf_counter() - ensure_start:.2f} seconds"
     )
 
     print(
@@ -842,6 +916,8 @@ def run_pipeline(
     print("")
     print("STEP 5: PSNR / SSIM")
 
+    evaluation_start = time.perf_counter()
+
     # --------------------------------------------------
     # Verify HR
     # --------------------------------------------------
@@ -849,6 +925,10 @@ def run_pipeline(
     ensure_512x512(
         hr_path
     )
+
+    # --------------------------------------------------
+    # ESRGAN metrics
+    # --------------------------------------------------
 
     print("")
     print("Comparing HR vs ESRGAN...")
@@ -869,6 +949,10 @@ def run_pipeline(
         f"ESRGAN SSIM: "
         f"{sr_metrics['ssim']:.4f}"
     )
+
+    # --------------------------------------------------
+    # Bicubic metrics
+    # --------------------------------------------------
 
     print("")
     print("Comparing HR vs Bicubic...")
@@ -892,12 +976,19 @@ def run_pipeline(
         f"{bicubic_metrics['ssim']:.4f}"
     )
 
+    print(
+        f"[TIME] EVALUATION: "
+        f"{time.perf_counter() - evaluation_start:.2f} seconds"
+    )
+
     # ==================================================
     # STEP 6 — P4 SEGMENTATION
     # ==================================================
 
     print("")
     print("STEP 6: P4 SEGMENTATION")
+
+    p4_start = time.perf_counter()
 
     p4_path = (
         P4_DIR
@@ -911,17 +1002,31 @@ def run_pipeline(
         output_path=str(p4_path),
     )
 
+    print(
+        f"[TIME] P4 SEGMENTATION: "
+        f"{time.perf_counter() - p4_start:.2f} seconds"
+    )
+
     # ==================================================
     # STEP 6B — LAND COVER
     # ==================================================
+
+    land_cover_start = time.perf_counter()
 
     land_cover = calculate_land_cover(
         p4_result
     )
 
+    print(
+        f"[TIME] LAND COVER CALCULATION: "
+        f"{time.perf_counter() - land_cover_start:.2f} seconds"
+    )
+
     # ==================================================
     # STEP 6C — VISUALIZATION
     # ==================================================
+
+    visualization_start = time.perf_counter()
 
     p4_visual_path = (
         P4_DIR
@@ -935,6 +1040,11 @@ def run_pipeline(
 
             output_path=p4_visual_path,
         )
+    )
+
+    print(
+        f"[TIME] P4 VISUALIZATION: "
+        f"{time.perf_counter() - visualization_start:.2f} seconds"
     )
 
     # ==================================================
@@ -980,6 +1090,11 @@ def run_pipeline(
     # ==================================================
     # FINAL LOG
     # ==================================================
+
+    total_time = (
+        time.perf_counter()
+        - total_start
+    )
 
     print("")
     print("=" * 60)
@@ -1046,6 +1161,30 @@ def run_pipeline(
             f"  {item['label']}: "
             f"{item['share'] * 100:.2f}%"
         )
+
+    # ==================================================
+    # TIME SUMMARY
+    # ==================================================
+
+    print("")
+    print("=" * 60)
+    print("TIME SUMMARY")
+    print("=" * 60)
+
+    print(
+        f"P1 model load/reuse: "
+        f"{model_time:.2f} seconds"
+    )
+
+    print(
+        f"P1 ESRGAN inference: "
+        f"{sr_inference_time:.2f} seconds"
+    )
+
+    print(
+        f"Total pipeline time: "
+        f"{total_time:.2f} seconds"
+    )
 
     print("=" * 60)
 
