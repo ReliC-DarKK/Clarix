@@ -11,8 +11,6 @@ import {
  *
  * Example:
  * NEXT_PUBLIC_CLARIX_API_URL=http://127.0.0.1:8000
- *
- * If it is not set, the frontend uses mock mode.
  */
 
 const API_BASE =
@@ -54,18 +52,6 @@ export const LAND_COVER_CLASSES: LandCoverClass[] = [
   },
 ]
 
-/**
- * Reference imagery used while the real pipeline
- * is not connected.
- */
-
-const PLACEHOLDER_IMAGES = {
-  input: '/images/tile-input.png',
-  bicubic: '/images/tile-bicubic.png',
-  clarix: '/images/tile-clarix.png',
-  landCover: '/images/landcover-map.png',
-}
-
 export interface StageEvent {
   stage: PipelineStageId
   message: string
@@ -74,104 +60,15 @@ export interface StageEvent {
 export interface RunAnalysisOptions {
   file: File
   source: SourceImageMeta
-
-  /**
-   * Preview object URL of the uploaded file.
-   *
-   * Used as the INPUT panel in mock mode.
-   */
   previewUrl?: string
-
   onStage?: (event: StageEvent) => void
   signal?: AbortSignal
 }
 
 /**
- * Small helper used by the mock pipeline.
- */
-function delay(
-  ms: number,
-  signal?: AbortSignal
-) {
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, ms)
-
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-
-        reject(
-          new DOMException(
-            'Aborted',
-            'AbortError'
-          )
-        )
-      },
-      { once: true }
-    )
-  })
-}
-
-/**
- * Mock run.
+ * Backend pipeline result.
  *
- * Walks through the same pipeline stages so the UI
- * can be tested even when the FastAPI backend
- * is not connected.
- */
-async function runMockAnalysis(
-  options: RunAnalysisOptions
-): Promise<AnalysisResult> {
-  for (const stage of PIPELINE_STAGES) {
-    options.onStage?.({
-      stage: stage.id,
-      message: stage.detail,
-    })
-
-    await delay(
-      1500,
-      options.signal
-    )
-  }
-
-  return {
-    jobId:
-      `mock-${Date.now().toString(36)}`,
-
-    source:
-      options.source,
-
-    images: {
-      input:
-        options.previewUrl ??
-        PLACEHOLDER_IMAGES.input,
-
-      bicubic:
-        PLACEHOLDER_IMAGES.bicubic,
-
-      clarix:
-        PLACEHOLDER_IMAGES.clarix,
-
-      landCover:
-        PLACEHOLDER_IMAGES.landCover,
-    },
-
-    metrics: {
-      psnr: null,
-      ssim: null,
-      scaleFactor: null,
-    },
-
-    landCover:
-      LAND_COVER_CLASSES,
-  }
-}
-
-/**
- * Current FastAPI backend response.
- *
- * POST /analyze returns:
+ * FastAPI /analyze returns:
  *
  * {
  *   success: true,
@@ -182,7 +79,10 @@ async function runMockAnalysis(
  *     hr: string,
  *     lr: string,
  *     sr: string,
- *     bicubic: string
+ *     bicubic: string,
+ *     p4?: string,
+ *     p4_visual?: string,
+ *     landCover?: [...]
  *   }
  * }
  */
@@ -193,6 +93,19 @@ interface BackendPipelineResult {
   lr: string
   sr: string
   bicubic: string
+
+  // P1 evaluation
+  psnr?: number
+  ssim?: number
+
+  // P3 baseline evaluation
+  bicubic_psnr?: number
+  bicubic_ssim?: number
+
+  // P4
+  p4?: string
+  p4_visual?: string
+  landCover?: LandCoverClass[]
 }
 
 interface BackendAnalyzeResponse {
@@ -203,9 +116,9 @@ interface BackendAnalyzeResponse {
 }
 
 /**
- * Convert a backend filesystem path into a browser URL.
+ * Convert backend filesystem paths into browser URLs.
  *
- * Backend returns Windows paths such as:
+ * Backend may return paths such as:
  *
  * C:\Users\DIVYA\Documents\clarix\backend_data\sr\image.png
  *
@@ -213,7 +126,7 @@ interface BackendAnalyzeResponse {
  *
  * /pipeline-files/
  *
- * Therefore the browser URL becomes:
+ * Therefore this becomes:
  *
  * http://127.0.0.1:8000/pipeline-files/sr/image.png
  */
@@ -226,7 +139,19 @@ function backendFileToUrl(
   }
 
   /**
-   * Extract the path relative to backend_data.
+   * If backend already returned a browser URL,
+   * use it directly.
+   */
+
+  if (
+    filePath.startsWith('http://') ||
+    filePath.startsWith('https://')
+  ) {
+    return filePath
+  }
+
+  /**
+   * Extract path relative to backend_data.
    *
    * Handles Windows:
    * C:\...\backend_data\sr\file.png
@@ -240,9 +165,7 @@ function backendFileToUrl(
   const markerIndex =
     filePath
       .toLowerCase()
-      .indexOf(
-        marker.toLowerCase()
-      )
+      .indexOf(marker.toLowerCase())
 
   if (markerIndex !== -1) {
     let relativePath =
@@ -282,16 +205,10 @@ function backendFileToUrl(
   }
 
   /**
-   * If backend somehow already returns a URL,
-   * use it directly.
+   * If the backend returns something unexpected,
+   * return it unchanged rather than silently
+   * replacing it with demo data.
    */
-
-  if (
-    filePath.startsWith('http://') ||
-    filePath.startsWith('https://')
-  ) {
-    return filePath
-  }
 
   return filePath
 }
@@ -299,22 +216,22 @@ function backendFileToUrl(
 /**
  * Live run against the FastAPI backend.
  *
- * The backend currently performs the pipeline
- * synchronously.
+ * The backend performs the pipeline synchronously.
  */
 
 async function runLiveAnalysis(
   options: RunAnalysisOptions
 ): Promise<AnalysisResult> {
-  const body = new FormData()
 
   /**
    * FastAPI expects:
    *
    * file: UploadFile = File(...)
    *
-   * Therefore the multipart field must be "file".
+   * Therefore the multipart field MUST be "file".
    */
+
+  const body = new FormData()
 
   body.append(
     'file',
@@ -327,8 +244,14 @@ async function runLiveAnalysis(
       'Uploading image for preprocessing',
   })
 
-  const response =
-    await fetch(
+  /**
+   * Send image to FastAPI.
+   */
+
+  let response: Response
+
+  try {
+    response = await fetch(
       `${API_BASE}/analyze`,
       {
         method: 'POST',
@@ -336,6 +259,27 @@ async function runLiveAnalysis(
         signal: options.signal,
       }
     )
+  } catch (error) {
+
+    /**
+     * Do NOT fall back to demo/mock data.
+     */
+
+    if (
+      error instanceof DOMException &&
+      error.name === 'AbortError'
+    ) {
+      throw error
+    }
+
+    throw new Error(
+      'Could not connect to the Clarix backend. Make sure FastAPI is running on http://127.0.0.1:8000.'
+    )
+  }
+
+  /**
+   * Handle HTTP errors.
+   */
 
   if (!response.ok) {
     let message =
@@ -348,18 +292,33 @@ async function runLiveAnalysis(
         }
 
       if (errorData.detail) {
-        message =
-          errorData.detail
+        message = errorData.detail
       }
     } catch {
-      // Keep the default error message.
+      // Keep default error message.
     }
 
     throw new Error(message)
   }
 
-  const data =
-    await response.json() as BackendAnalyzeResponse
+  /**
+   * Parse backend response.
+   */
+
+  let data: BackendAnalyzeResponse
+
+  try {
+    data =
+      await response.json() as BackendAnalyzeResponse
+  } catch {
+    throw new Error(
+      'The backend returned an invalid response.'
+    )
+  }
+
+  /**
+   * Validate backend response.
+   */
 
   if (!data.success) {
     throw new Error(
@@ -374,13 +333,32 @@ async function runLiveAnalysis(
   }
 
   /**
-   * Backend is synchronous.
+   * Make sure the actual pipeline outputs exist.
    *
-   * By the time /analyze responds:
-   *
-   * P2 is complete
-   * P1 is complete
-   * P3 is complete
+   * We intentionally DO NOT replace missing outputs
+   * with demo images.
+   */
+
+  if (!data.result.lr) {
+    throw new Error(
+      'P2 completed but did not return an LR image.'
+    )
+  }
+
+  if (!data.result.bicubic) {
+    throw new Error(
+      'P3 completed but did not return a Bicubic image.'
+    )
+  }
+
+  if (!data.result.sr) {
+    throw new Error(
+      'P1 completed but did not return an SR image.'
+    )
+  }
+
+  /**
+   * Pipeline stages completed.
    */
 
   options.onStage?.({
@@ -409,7 +387,7 @@ async function runLiveAnalysis(
 
   /**
    * Convert backend filesystem paths
-   * into URLs that the browser can actually load.
+   * into browser-accessible URLs.
    */
 
   const lrUrl =
@@ -428,15 +406,30 @@ async function runLiveAnalysis(
     )
 
   /**
-   * Return the existing frontend AnalysisResult.
+   * P4 visualization.
+   *
+   * If P4 has not been connected yet,
+   * keep this empty.
    *
    * IMPORTANT:
+   * We do NOT use /images/landcover-map.png
+   * as a fallback.
+   */
+
+  const landCoverUrl =
+    data.result.p4_visual
+      ? backendFileToUrl(
+          data.result.p4_visual
+        )
+      : ''
+
+  /**
+   * Actual frontend result.
    *
-   * INPUT is now the actual LR 256x256 image
-   * generated by P2.
-   *
-   * P3 = Bicubic 1024x1024
-   * P1 = Real-ESRGAN 1024x1024
+   * INPUT  = P2 LR 256x256
+   * BICUBIC = P3 1024x1024
+   * CLARIX = P1 Real-ESRGAN 1024x1024
+   * LAND COVER = P4 visualization
    */
 
   return {
@@ -448,61 +441,97 @@ async function runLiveAnalysis(
 
     images: {
       /**
-       * P2 LR 256x256
-       *
-       * This is now shown as the INPUT
-       * instead of the original uploaded image.
+       * P2 LR output
+       * shown as Input.
        */
 
       input:
-        lrUrl ||
-        PLACEHOLDER_IMAGES.input,
+        lrUrl,
 
       /**
-       * P3 Bicubic 1024x1024
+       * P3 Bicubic output.
        */
 
       bicubic:
-        bicubicUrl ||
-        PLACEHOLDER_IMAGES.bicubic,
+        bicubicUrl,
 
       /**
-       * P1 Real-ESRGAN 1024x1024
+       * P1 Real-ESRGAN output.
        */
 
       clarix:
-        srUrl ||
-        PLACEHOLDER_IMAGES.clarix,
+        srUrl,
 
       /**
-       * P4 is not integrated yet.
+       * P4 segmentation visualization.
+       *
+       * Empty if P4 visual is not returned.
        */
 
       landCover:
-        PLACEHOLDER_IMAGES.landCover,
+        landCoverUrl,
     },
 
     metrics: {
-      psnr: null,
-      ssim: null,
+      /**
+       * Evaluation values are not currently
+       * being returned by the backend response
+       * interface.
+       */
+
+      psnr:
+      typeof data.result.psnr === 'number'
+      ? data.result.psnr
+      : null,
+
+      ssim:
+      typeof data.result.ssim === 'number'
+      ? data.result.ssim
+      : null,
+      /**
+       * P1 is 4x.
+       */
+
       scaleFactor: 4,
     },
 
+    /**
+     * Actual P4 class percentages if returned.
+     *
+     * Only use the static class definitions
+     * if the backend hasn't returned percentages.
+     */
+
     landCover:
+      data.result.landCover ??
       LAND_COVER_CLASSES,
   }
 }
 
 /**
  * Main analysis entry point.
+ *
+ * IMPORTANT:
+ *
+ * There is intentionally NO mock fallback here.
+ *
+ * If the backend is unavailable,
+ * runAnalysis() throws an error.
  */
 
 export function runAnalysis(
   options: RunAnalysisOptions
 ): Promise<AnalysisResult> {
-  return isLiveBackend
-    ? runLiveAnalysis(options)
-    : runMockAnalysis(options)
+
+  if (!API_BASE) {
+    return Promise.reject(
+      new Error(
+        'NEXT_PUBLIC_CLARIX_API_URL is not configured. Start the FastAPI backend and set the API URL in .env.local.'
+      )
+    )
+  }
+
+  return runLiveAnalysis(options)
 }
 
 /**
